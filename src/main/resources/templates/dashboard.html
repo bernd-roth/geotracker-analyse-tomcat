@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>GeoTracker Analysis Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <style>
+        body {
+            background-color: #f0f2f5;
+        }
+        .stat-card {
+            border: none;
+            border-radius: 12px;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+        .stat-card .card-body {
+            padding: 1.5rem;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6c757d;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .table th {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6c757d;
+            border-bottom-width: 2px;
+        }
+        .badge-sport {
+            font-size: 0.75rem;
+        }
+        .section-title {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #0d6efd;
+            display: inline-block;
+        }
+        .record-card {
+            border-left: 4px solid #ffc107;
+        }
+        .nav-brand-custom {
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 1.2em;
+        }
+        .table th.sortable:hover {
+            color: #0d6efd;
+        }
+        .table th.sortable::after {
+            content: '\2195';
+            position: absolute;
+            right: 0.3em;
+            opacity: 0.3;
+            font-size: 0.75em;
+        }
+        .table th.sortable.asc::after {
+            content: '\2191';
+            opacity: 0.8;
+        }
+        .table th.sortable.desc::after {
+            content: '\2193';
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+        <span class="navbar-brand nav-brand-custom">GeoTracker Analysis</span>
+        <span class="navbar-text text-light me-auto ms-3">
+            Running &amp; Activity Dashboard
+        </span>
+        <div class="d-flex align-items-center">
+            <label for="userFilter" class="text-light me-2 mb-0 small">Filter user:</label>
+            <select id="userFilter" class="form-select form-select-sm"
+                    style="min-width: 180px;"
+                    onchange="const v=this.value; window.location.href = v ? ('/?userId=' + v) : '/';">
+                <option value="">All users</option>
+                <option th:each="u : ${allUsers}"
+                        th:value="${u.userId}"
+                        th:text="${u.firstname}"
+                        th:selected="${selectedUserId != null and selectedUserId == u.userId}"></option>
+            </select>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card shadow-sm">
+                <div class="card-body">
+                    <div class="stat-label">Total Sessions</div>
+                    <div class="stat-value text-primary" th:text="${#numbers.formatInteger(totalSessions, 1, 'COMMA')}">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card shadow-sm">
+                <div class="card-body">
+                    <div class="stat-label">Total Distance</div>
+                    <div class="stat-value text-success">
+                        <span th:text="${#numbers.formatDecimal(totalDistanceKm, 1, 'COMMA', 1, 'POINT')}">0</span>
+                        <small class="fs-6 text-muted">km</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card shadow-sm">
+                <div class="card-body">
+                    <div class="stat-label">GPS Data Points</div>
+                    <div class="stat-value text-info" th:text="${#numbers.formatInteger(totalGpsPoints, 1, 'COMMA')}">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card stat-card shadow-sm">
+                <div class="card-body">
+                    <div class="stat-label">Active Users</div>
+                    <div class="stat-value text-warning" th:text="${activeUsers}">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Sessions by Sport Type</h5>
+                    <div class="chart-container">
+                        <canvas id="sportTypeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Monthly Activity Trend</h5>
+                    <div class="chart-container">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Personal Records -->
+    <div class="row g-3 mb-4" th:if="${!records.isEmpty()}">
+        <div class="col-12">
+            <h5 class="section-title">Personal Records</h5>
+        </div>
+        <div class="col-md-4" th:each="record : ${records}">
+            <div class="card shadow-sm record-card">
+                <div class="card-body">
+                    <h6 class="text-muted" th:text="${record.recordType()}">Record</h6>
+                    <div class="fs-3 fw-bold">
+                        <span th:text="${#numbers.formatDecimal(record.value(), 1, 'COMMA', 1, 'POINT')}">0</span>
+                        <small class="fs-6 text-muted" th:text="${record.unit()}">unit</small>
+                    </div>
+                    <div class="small">
+                        <span th:text="${record.userName()}">User</span> &mdash;
+                        <span th:text="${record.eventName()}">Event</span>
+                    </div>
+                    <div class="small text-muted">
+                        <span th:text="${record.sportType()}">Sport</span>
+                        <span th:if="${record.dateFormatted() != null and record.dateFormatted() != '-'}">
+                            &mdash; <span th:text="${record.dateFormatted()}">Date</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Statistics -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="section-title">User Statistics</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>User</th>
+                                <th class="text-end">Sessions</th>
+                                <th class="text-end">Total Distance (km)</th>
+                                <th class="text-end">Avg Speed (km/h)</th>
+                                <th class="text-end">Total Elevation (m)</th>
+                                <th class="text-end">Avg Heart Rate</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="u : ${userStats}">
+                                <td class="fw-semibold" th:text="${u.userName()}">User</td>
+                                <td class="text-end" th:text="${u.sessionCount()}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(u.totalDistanceKm(), 1, 'COMMA', 1, 'POINT')}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(u.avgSpeedKmh(), 1, 'COMMA', 1, 'POINT')}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(u.totalElevationGainM(), 1, 'COMMA', 0, 'POINT')}">0</td>
+                                <td class="text-end">
+                                    <span th:if="${u.avgHeartRate() > 0}" th:text="${#numbers.formatDecimal(u.avgHeartRate(), 1, 'COMMA', 0, 'POINT')}">0</span>
+                                    <span th:if="${u.avgHeartRate() == 0}">-</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sport Type Breakdown -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="section-title">Sport Type Breakdown</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>Sport Type</th>
+                                <th class="text-end">Sessions</th>
+                                <th class="text-end">Total Distance (km)</th>
+                                <th class="text-end">Avg Distance (km)</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="s : ${sportTypeStats}">
+                                <td>
+                                    <span class="badge badge-sport rounded-pill"
+                                          th:classappend="${s.sportType() == 'Running'} ? 'bg-success' :
+                                                          (${s.sportType() == 'Walking'} ? 'bg-primary' :
+                                                          (${s.sportType() == 'Marathon' or s.sportType() == 'Ultramarathon'} ? 'bg-danger' :
+                                                          'bg-secondary'))"
+                                          th:text="${s.sportType()}">Sport</span>
+                                </td>
+                                <td class="text-end" th:text="${s.sessionCount()}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(s.totalDistanceKm(), 1, 'COMMA', 1, 'POINT')}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(s.avgDistanceKm(), 1, 'COMMA', 1, 'POINT')}">0</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sessions Overview -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+                        <h5 class="section-title mb-0">Sessions Overview</h5>
+                        <span class="text-muted small">
+                            Showing <span th:text="${sessionsPage * sessionsPageSize + 1}">1</span>–<span
+                                th:text="${sessionsPage * sessionsPageSize + #lists.size(recentSessions)}">30</span>
+                            of <span th:text="${sessionsTotalCount}">0</span>
+                            (page <span th:text="${sessionsPage + 1}">1</span>
+                            of <span th:text="${sessionsTotalPages}">1</span>)
+                        </span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>User</th>
+                                <th>Event</th>
+                                <th>Sport</th>
+                                <th>Location</th>
+                                <th class="text-end">Distance (km)</th>
+                                <th class="text-end">Avg Speed</th>
+                                <th class="text-end">Max Speed</th>
+                                <th class="text-end">Elevation (m)</th>
+                                <th class="text-end">Avg HR</th>
+                                <th class="text-end">Temp</th>
+                                <th class="text-end">Duration</th>
+                                <th class="text-end">Pace</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="s : ${recentSessions}"
+                                class="session-row"
+                                style="cursor: pointer;"
+                                th:data-session-id="${s.sessionId()}">
+                                <td class="text-nowrap" th:text="${s.startDateTimeFormatted()}">Date</td>
+                                <td th:text="${s.userName()}">User</td>
+                                <td>
+                                    <a th:href="@{/session/{id}(id=${s.sessionId()})}"
+                                       th:text="${s.eventName()}"
+                                       onclick="event.stopPropagation();">Event</a>
+                                </td>
+                                <td>
+                                    <span class="badge badge-sport rounded-pill"
+                                          th:classappend="${s.sportType() == 'Running'} ? 'bg-success' :
+                                                          (${s.sportType() == 'Walking'} ? 'bg-primary' :
+                                                          (${s.sportType() == 'Marathon' or s.sportType() == 'Ultramarathon'} ? 'bg-danger' :
+                                                          'bg-secondary'))"
+                                          th:text="${s.sportType()}">Sport</span>
+                                </td>
+                                <td>
+                                    <span th:text="${s.startCity()}">City</span>
+                                    <span th:if="${s.startCountry() != null and !s.startCountry().isEmpty()}" class="text-muted small">
+                                        (<span th:text="${s.startCountry()}">Country</span>)
+                                    </span>
+                                </td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(s.distanceKm(), 1, 'COMMA', 2, 'POINT')}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(s.avgSpeedKmh(), 1, 'COMMA', 1, 'POINT')} + ' km/h'">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(s.maxSpeedKmh(), 1, 'COMMA', 1, 'POINT')} + ' km/h'">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(s.elevationGainM(), 1, 'COMMA', 0, 'POINT')}">0</td>
+                                <td class="text-end">
+                                    <span th:if="${s.avgHeartRate() != null}" th:text="${#numbers.formatDecimal(s.avgHeartRate(), 1, 'COMMA', 0, 'POINT')}">-</span>
+                                    <span th:if="${s.avgHeartRate() == null}">-</span>
+                                </td>
+                                <td class="text-end">
+                                    <span th:if="${s.avgTemperature() != null}" th:text="${#numbers.formatDecimal(s.avgTemperature(), 1, 'COMMA', 1, 'POINT')} + '°C'">-</span>
+                                    <span th:if="${s.avgTemperature() == null}">-</span>
+                                </td>
+                                <td class="text-end text-nowrap" th:text="${s.duration()}">-</td>
+                                <td class="text-end text-nowrap" th:text="${s.pace()}">-</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <nav class="mt-3" th:if="${sessionsTotalPages > 1}">
+                        <ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap">
+                            <li class="page-item" th:classappend="${sessionsPage == 0} ? 'disabled'">
+                                <a class="page-link"
+                                   th:href="@{/(userId=${selectedUserId}, page=0)}">&laquo; First</a>
+                            </li>
+                            <li class="page-item" th:classappend="${sessionsPage == 0} ? 'disabled'">
+                                <a class="page-link"
+                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsPage - 1})}">Previous</a>
+                            </li>
+                            <li class="page-item"
+                                th:each="p : ${#numbers.sequence(0, sessionsTotalPages - 1)}"
+                                th:if="${p >= sessionsPage - 3 and p <= sessionsPage + 3}"
+                                th:classappend="${p == sessionsPage} ? 'active'">
+                                <a class="page-link"
+                                   th:href="@{/(userId=${selectedUserId}, page=${p})}"
+                                   th:text="${p + 1}">1</a>
+                            </li>
+                            <li class="page-item" th:classappend="${sessionsPage + 1 >= sessionsTotalPages} ? 'disabled'">
+                                <a class="page-link"
+                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsPage + 1})}">Next</a>
+                            </li>
+                            <li class="page-item" th:classappend="${sessionsPage + 1 >= sessionsTotalPages} ? 'disabled'">
+                                <a class="page-link"
+                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsTotalPages - 1})}">Last &raquo;</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fastest Paces and Planned Events side by side -->
+    <div class="row g-3 mb-4">
+        <!-- Fastest Paces -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Fastest Paces (Running)</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Event</th>
+                                <th>Sport</th>
+                                <th>Date</th>
+                                <th class="text-end">Distance (km)</th>
+                                <th class="text-end">Duration</th>
+                                <th class="text-end">Pace</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="p : ${fastestPaces}">
+                                <td th:text="${p.userName()}">User</td>
+                                <td th:text="${p.eventName()}">Event</td>
+                                <td><span class="badge badge-sport rounded-pill bg-success" th:text="${p.sportType()}">Sport</span></td>
+                                <td class="text-nowrap" th:text="${p.date()}">Date</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(p.distanceKm(), 1, 'COMMA', 2, 'POINT')}">0</td>
+                                <td class="text-end text-nowrap" th:text="${p.duration()}">-</td>
+                                <td class="text-end fw-bold" th:text="${p.pace()}">-</td>
+                            </tr>
+                            <tr th:if="${fastestPaces.isEmpty()}">
+                                <td colspan="7" class="text-center text-muted">No pace data available</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Planned Events -->
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Upcoming Events</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Event</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                                <th>Status</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="e : ${upcomingEvents}">
+                                <td class="text-nowrap" th:text="${#temporals.format(e.plannedEventDate, 'dd MMM yyyy')}">Date</td>
+                                <td>
+                                    <span th:text="${e.plannedEventName}">Event</span>
+                                    <a th:if="${e.website != null and !e.website.isEmpty()}"
+                                       th:href="${e.website}" target="_blank" class="ms-1 small">link</a>
+                                </td>
+                                <td th:text="${e.plannedEventType}">Type</td>
+                                <td>
+                                    <span th:text="${e.plannedEventCity}">City</span>,
+                                    <span th:text="${e.plannedEventCountry}">Country</span>
+                                </td>
+                                <td>
+                                    <span class="badge"
+                                          th:classappend="${e.isEnteredAndFinished} ? 'bg-success' : 'bg-warning text-dark'"
+                                          th:text="${e.isEnteredAndFinished} ? 'Completed' : 'Upcoming'">Status</span>
+                                </td>
+                            </tr>
+                            <tr th:if="${upcomingEvents.isEmpty()}">
+                                <td colspan="5" class="text-center text-muted">No upcoming events</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monthly Stats Table -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="section-title">Monthly Breakdown</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th class="text-end">Sessions</th>
+                                <th class="text-end">Total Distance (km)</th>
+                                <th class="text-end">Avg Distance/Session (km)</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="m : ${monthlyStats}">
+                                <td class="fw-semibold" th:text="${m.yearMonth()}">Month</td>
+                                <td class="text-end" th:text="${m.sessionCount()}">0</td>
+                                <td class="text-end" th:text="${#numbers.formatDecimal(m.totalDistanceKm(), 1, 'COMMA', 1, 'POINT')}">0</td>
+                                <td class="text-end" th:text="${m.sessionCount() > 0} ? ${#numbers.formatDecimal(m.totalDistanceKm() / m.sessionCount(), 1, 'COMMA', 1, 'POINT')} : '0'">0</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<footer class="bg-dark text-light text-center py-3 mt-4">
+    <small>GeoTracker Analysis Dashboard &mdash; Powered by Spring Boot &amp; Thymeleaf</small>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script th:inline="javascript">
+    const sportLabels = /*[[${sportLabels}]]*/ [];
+    const sportCounts = /*[[${sportCounts}]]*/ [];
+    const monthLabels = /*[[${monthLabels}]]*/ [];
+    const monthSessions = /*[[${monthSessions}]]*/ [];
+    const monthDistances = /*[[${monthDistances}]]*/ [];
+
+    // Color palette
+    const colors = [
+        '#0d6efd', '#198754', '#dc3545', '#ffc107', '#0dcaf0',
+        '#6f42c1', '#fd7e14', '#20c997', '#d63384', '#6c757d',
+        '#0a58ca', '#146c43'
+    ];
+
+    // Sport Type Pie Chart
+    new Chart(document.getElementById('sportTypeChart'), {
+        type: 'doughnut',
+        data: {
+            labels: sportLabels,
+            datasets: [{
+                data: sportCounts,
+                backgroundColor: colors.slice(0, sportLabels.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { padding: 12, usePointStyle: true }
+                }
+            }
+        }
+    });
+
+    // Monthly Trend Chart
+    new Chart(document.getElementById('monthlyChart'), {
+        type: 'bar',
+        data: {
+            labels: monthLabels,
+            datasets: [
+                {
+                    label: 'Sessions',
+                    data: monthSessions,
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: '#0d6efd',
+                    borderWidth: 1,
+                    yAxisID: 'y',
+                    order: 2
+                },
+                {
+                    label: 'Distance (km)',
+                    data: monthDistances,
+                    type: 'line',
+                    borderColor: '#198754',
+                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                    yAxisID: 'y1',
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: { usePointStyle: true }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        maxTicksLimit: 18
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: 'Sessions' },
+                    beginAtZero: true
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    title: { display: true, text: 'Distance (km)' },
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+
+    // ── Sortable Tables ──
+    document.querySelectorAll('.table').forEach(table => {
+        const headers = table.querySelectorAll('thead th');
+        if (!headers.length) return;
+
+        headers.forEach((th, colIdx) => {
+            th.classList.add('sortable');
+            th.addEventListener('click', () => {
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const isAsc = th.classList.contains('asc');
+
+                // Reset all headers in this table
+                headers.forEach(h => h.classList.remove('asc', 'desc'));
+                th.classList.add(isAsc ? 'desc' : 'asc');
+
+                rows.sort((a, b) => {
+                    const cellA = a.children[colIdx];
+                    const cellB = b.children[colIdx];
+                    if (!cellA || !cellB) return 0;
+
+                    let valA = cellA.textContent.trim();
+                    let valB = cellB.textContent.trim();
+
+                    // Extract numbers: strip units, commas, special chars
+                    const numA = parseFloat(valA.replace(/[^0-9.\-]/g, ''));
+                    const numB = parseFloat(valB.replace(/[^0-9.\-]/g, ''));
+
+                    // If both parse as numbers, compare numerically
+                    if (!isNaN(numA) && !isNaN(numB)) {
+                        return isAsc ? numB - numA : numA - numB;
+                    }
+
+                    // Otherwise compare as strings (locale-aware)
+                    return isAsc
+                        ? valB.localeCompare(valA, undefined, {sensitivity: 'base'})
+                        : valA.localeCompare(valB, undefined, {sensitivity: 'base'});
+                });
+
+                rows.forEach(row => tbody.appendChild(row));
+            });
+        });
+    });
+
+    // Clickable session rows
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('tr.session-row').forEach(row => {
+            row.addEventListener('click', () => {
+                const id = row.getAttribute('data-session-id');
+                if (id) window.location.href = '/session/' + encodeURIComponent(id);
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

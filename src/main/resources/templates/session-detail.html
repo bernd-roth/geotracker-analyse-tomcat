@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title th:text="'Session: ' + ${sessionDetail.eventName()}">Session Detail</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+    <style>
+        body { background-color: #f0f2f5; }
+        .stat-card { border: none; border-radius: 12px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; }
+        .stat-label {
+            font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 0.05em; color: #6c757d;
+        }
+        .section-title {
+            font-weight: 600; margin-bottom: 1rem;
+            padding-bottom: 0.5rem; border-bottom: 2px solid #0d6efd;
+            display: inline-block;
+        }
+        #map { height: 500px; width: 100%; border-radius: 12px; }
+        .chart-container { position: relative; height: 260px; }
+        .nav-brand-custom { font-weight: 700; letter-spacing: 0.02em; }
+        .hover-marker {
+            background: #0d6efd;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+        }
+        .point-details { margin-bottom: 0; font-size: 0.875rem; }
+        .point-details .pd-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            padding: 0.3rem 0; border-bottom: 1px solid #f1f3f5;
+        }
+        .point-details .pd-row:last-child { border-bottom: none; }
+        .point-details .pd-label {
+            color: #6c757d; text-transform: uppercase;
+            font-size: 0.7rem; letter-spacing: 0.05em;
+        }
+        .point-details .pd-value { font-weight: 600; text-align: right; }
+        #pointDetailsCard .card-body { max-height: 532px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+        <a class="navbar-brand nav-brand-custom text-light text-decoration-none" href="/">GeoTracker Analysis</a>
+        <span class="navbar-text text-light ms-3">
+            Session Detail
+        </span>
+        <a href="/" class="btn btn-sm btn-outline-light ms-auto">&larr; Back to Dashboard</a>
+    </div>
+</nav>
+
+<div class="container-fluid px-4">
+
+    <!-- Header -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <h3 th:text="${sessionDetail.eventName()}">Event Name</h3>
+            <p class="text-muted mb-0">
+                <span th:text="${sessionDetail.userName()}">User</span>
+                &middot;
+                <span class="badge bg-secondary" th:text="${sessionDetail.sportType()}">Sport</span>
+                &middot;
+                <span th:text="${sessionDetail.startDateTimeFormatted()}">Date</span>
+                <span th:if="${sessionDetail.startCity() != null and !sessionDetail.startCity().isEmpty()}">
+                    &middot; <span th:text="${sessionDetail.startCity()}">City</span><span
+                        th:if="${sessionDetail.startCountry() != null and !sessionDetail.startCountry().isEmpty()}"
+                        th:text="', ' + ${sessionDetail.startCountry()}"></span>
+                </span>
+            </p>
+            <p th:if="${sessionDetail.comment() != null and !sessionDetail.comment().isEmpty()}"
+               class="text-muted fst-italic small mt-2 mb-0"
+               th:text="${sessionDetail.comment()}">Comment</p>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2 col-6">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Distance</div>
+                    <div class="stat-value text-primary"
+                         th:text="${#numbers.formatDecimal(sessionDetail.distanceKm(), 1, 'COMMA', 2, 'POINT')} + ' km'">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Duration</div>
+                    <div class="stat-value text-info" th:text="${sessionDetail.duration()}">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Pace</div>
+                    <div class="stat-value text-success" th:text="${sessionDetail.pace()}">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Avg Speed</div>
+                    <div class="stat-value"
+                         th:text="${#numbers.formatDecimal(sessionDetail.avgSpeedKmh(), 1, 'COMMA', 1, 'POINT')} + ' km/h'">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Max Speed</div>
+                    <div class="stat-value"
+                         th:text="${#numbers.formatDecimal(sessionDetail.maxSpeedKmh(), 1, 'COMMA', 1, 'POINT')} + ' km/h'">0</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Elevation Gain</div>
+                    <div class="stat-value"
+                         th:text="${#numbers.formatDecimal(sessionDetail.elevationGainM(), 1, 'COMMA', 0, 'POINT')} + ' m'">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HR + Temperature -->
+    <div class="row g-3 mb-4" th:if="${sessionDetail.hasHeartRate() or sessionDetail.avgTemperature() != null}">
+        <div class="col-md-4" th:if="${sessionDetail.hasHeartRate()}">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Heart Rate (avg / min / max)</div>
+                    <div class="stat-value text-danger">
+                        <span th:text="${#numbers.formatDecimal(sessionDetail.avgHeartRate(), 1, 'COMMA', 0, 'POINT')}">-</span>
+                        / <span th:text="${sessionDetail.minHeartRate()}">-</span>
+                        / <span th:text="${sessionDetail.maxHeartRate()}">-</span>
+                        <small class="text-muted">bpm</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4" th:if="${sessionDetail.avgTemperature() != null}">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="stat-label">Avg Temperature</div>
+                    <div class="stat-value"
+                         th:text="${#numbers.formatDecimal(sessionDetail.avgTemperature(), 1, 'COMMA', 1, 'POINT')} + ' °C'">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map + Point Details -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-9">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Track</h5>
+                    <div id="map" style="display:none;"></div>
+                    <div id="mapEmpty" class="text-muted text-center py-5" style="display:none;">
+                        No GPS points available for this session.
+                    </div>
+                    <div id="mapLoading" class="text-muted text-center py-5">
+                        Loading track…
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3">
+            <div id="pointDetailsCard" class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Point Details</h5>
+                    <div id="pointDetailsEmpty" class="text-muted small">
+                        Hover a chart to see details for that point.
+                    </div>
+                    <dl id="pointDetails" class="point-details" style="display:none;"></dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <small class="text-muted">
+            Hover a chart to locate the point on the map. Scroll to zoom, drag to pan, shift-drag to box-zoom (charts stay in sync).
+        </small>
+        <button id="resetZoomBtn" type="button" class="btn btn-sm btn-outline-secondary">Reset zoom</button>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6" th:if="${sessionDetail.hasHeartRate()}">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Heart Rate</h5>
+                    <div class="chart-container">
+                        <canvas id="hrChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Elevation</h5>
+                    <div class="chart-container">
+                        <canvas id="elevChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Speed</h5>
+                    <div class="chart-container">
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Laps -->
+    <div class="row g-3 mb-4" th:if="${!laps.isEmpty()}">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h5 class="section-title">Lap Times</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th>Lap</th>
+                                <th class="text-end">Distance (km)</th>
+                                <th class="text-end">Pace</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="l : ${laps}">
+                                <td th:text="${l.lapNumber()}">1</td>
+                                <td class="text-end"
+                                    th:text="${#numbers.formatDecimal(l.distanceM(), 1, 'COMMA', 2, 'POINT')}">0</td>
+                                <td class="text-end" th:text="${l.durationFormatted()}">-</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Track data -->
+<script th:inline="javascript">
+    const sessionId = /*[[${sessionDetail.sessionId()}]]*/ '';
+    const hasHeartRate = /*[[${sessionDetail.hasHeartRate()}]]*/ false;
+</script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+<script>
+    function showMapEmpty() {
+        document.getElementById('map').style.display = 'none';
+        document.getElementById('mapLoading').style.display = 'none';
+        document.getElementById('mapEmpty').style.display = 'block';
+    }
+
+    function downsample(points, maxPoints) {
+        if (points.length <= maxPoints) return points;
+        const step = Math.ceil(points.length / maxPoints);
+        const out = [];
+        for (let i = 0; i < points.length; i += step) out.push(points[i]);
+        if (out[out.length - 1] !== points[points.length - 1]) out.push(points[points.length - 1]);
+        return out;
+    }
+
+    let leafletMap = null;
+    let hoverMarker = null;
+    const charts = {};
+    let syncingZoom = false;
+
+    function setHoverMarker(lat, lon) {
+        if (!leafletMap || !Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return;
+        if (!hoverMarker) {
+            hoverMarker = L.circleMarker([lat, lon], {
+                radius: 7,
+                color: '#fff',
+                weight: 2,
+                fillColor: '#0d6efd',
+                fillOpacity: 1
+            }).addTo(leafletMap);
+        } else {
+            hoverMarker.setLatLng([lat, lon]);
+        }
+    }
+
+    function clearHoverMarker() {
+        if (hoverMarker) {
+            hoverMarker.remove();
+            hoverMarker = null;
+        }
+    }
+
+    const WEATHER_CODE_TEXT = {
+        0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
+        45: 'Fog', 48: 'Rime fog',
+        51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
+        56: 'Freezing drizzle', 57: 'Heavy freezing drizzle',
+        61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+        66: 'Freezing rain', 67: 'Heavy freezing rain',
+        71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+        77: 'Snow grains',
+        80: 'Light showers', 81: 'Showers', 82: 'Violent showers',
+        85: 'Snow showers', 86: 'Heavy snow showers',
+        95: 'Thunderstorm', 96: 'Thunderstorm w/ hail', 99: 'Severe thunderstorm w/ hail'
+    };
+
+    function fmtNum(value, digits, unit) {
+        if (value == null || !Number.isFinite(value)) return null;
+        const txt = digits === 0 ? Math.round(value).toString() : value.toFixed(digits);
+        return unit ? `${txt} ${unit}` : txt;
+    }
+
+    function fmtInt(value, unit) {
+        if (value == null) return null;
+        return unit ? `${value} ${unit}` : `${value}`;
+    }
+
+    function cardinal(deg) {
+        if (deg == null || !Number.isFinite(deg)) return null;
+        const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+        return dirs[Math.round(((deg % 360 + 360) % 360) / 45) % 8];
+    }
+
+    function fmtTime(sec) {
+        if (sec == null || !Number.isFinite(sec)) return null;
+        const total = Math.floor(sec);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        const pad = n => String(n).padStart(2, '0');
+        return h > 0 ? `${h}h ${pad(m)}m ${pad(s)}s` : `${m}m ${pad(s)}s`;
+    }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+    }
+
+    function renderPointDetails(p) {
+        const rows = [];
+        const push = (label, value) => { if (value != null) rows.push([label, value]); };
+
+        push('Distance',    fmtNum(p.distanceM / 1000, 2, 'km'));
+        push('Time',        fmtTime(p.secondsFromStart));
+        push('Speed',       fmtNum(p.speedKmh, 1, 'km/h'));
+        push('Elevation',   fmtNum(p.altitude, 0, 'm'));
+        push('Heart Rate',  fmtInt(p.heartRate, 'bpm'));
+        push('Slope',       fmtNum(p.slope, 1, '%'));
+        push('Temperature', fmtNum(p.temperature, 1, '°C'));
+        push('Humidity',    fmtInt(p.humidity, '%'));
+
+        if (p.windSpeed != null) {
+            const dir = cardinal(p.windDirection);
+            const ws = fmtNum(p.windSpeed, 1, 'km/h');
+            push('Wind', dir ? `${ws} ${dir}` : ws);
+        }
+        if (p.weatherCode != null) {
+            const text = WEATHER_CODE_TEXT[p.weatherCode];
+            push('Weather', text ? `${text} (${p.weatherCode})` : `code ${p.weatherCode}`);
+        }
+        push('Pressure',           fmtNum(p.pressure, 1, 'hPa'));
+        push('Sea-level Pressure', fmtNum(p.seaLevelPressure, 1, 'hPa'));
+        push('Alt (baro)',         fmtNum(p.altitudeFromPressure, 0, 'm'));
+        push('GPS Accuracy',       fmtNum(p.horizontalAccuracy, 1, 'm'));
+        push('Satellites',         fmtInt(p.numberOfSatellites, null));
+
+        const dl = document.getElementById('pointDetails');
+        const empty = document.getElementById('pointDetailsEmpty');
+        if (rows.length === 0) {
+            dl.style.display = 'none';
+            empty.style.display = 'block';
+            return;
+        }
+        dl.innerHTML = rows.map(([k, v]) =>
+            `<div class="pd-row"><span class="pd-label">${escapeHtml(k)}</span><span class="pd-value">${escapeHtml(v)}</span></div>`
+        ).join('');
+        dl.style.display = 'block';
+        empty.style.display = 'none';
+    }
+
+    function clearPointDetails() {
+        const dl = document.getElementById('pointDetails');
+        const empty = document.getElementById('pointDetailsEmpty');
+        if (dl) dl.style.display = 'none';
+        if (empty) empty.style.display = 'block';
+    }
+
+    function syncZoomFrom(sourceId) {
+        if (syncingZoom) return;
+        const source = charts[sourceId];
+        if (!source) return;
+        const xMin = source.scales.x.min;
+        const xMax = source.scales.x.max;
+        syncingZoom = true;
+        try {
+            Object.keys(charts).forEach(id => {
+                if (id === sourceId) return;
+                const c = charts[id];
+                if (c && typeof c.zoomScale === 'function') {
+                    c.zoomScale('x', { min: xMin, max: xMax }, 'none');
+                }
+            });
+        } finally {
+            syncingZoom = false;
+        }
+    }
+
+    function buildLineChart(canvasId, points, valueFn, label, color, yUnit) {
+        const el = document.getElementById(canvasId);
+        if (!el) return null;
+        const sample = downsample(points, 400);
+        const data = sample.map(p => ({
+            x: p.distanceM / 1000,
+            y: valueFn(p),
+            lat: p.lat,
+            lon: p.lon,
+            point: p
+        }));
+        const chart = new Chart(el, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: label,
+                    data: data,
+                    parsing: false,
+                    spanGaps: true,
+                    borderColor: color,
+                    backgroundColor: color + '33',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    tension: 0.2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { mode: 'nearest', intersect: false, axis: 'x' },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => items.length ? items[0].parsed.x.toFixed(2) + ' km' : '',
+                            label: ctx => `${label}: ${ctx.parsed.y == null ? '-' : ctx.parsed.y.toFixed(1)} ${yUnit}`
+                        }
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'x',
+                            onPanComplete: ctx => syncZoomFrom(canvasId)
+                        },
+                        zoom: {
+                            wheel: { enabled: true },
+                            pinch: { enabled: true },
+                            drag: { enabled: true, modifierKey: 'shift' },
+                            mode: 'x',
+                            onZoomComplete: ctx => syncZoomFrom(canvasId)
+                        },
+                        limits: {
+                            x: { minRange: 0.05 }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: { display: true, text: 'Distance (km)' }
+                    },
+                    y: { title: { display: true, text: yUnit } }
+                },
+                onHover: (event, elements, chartRef) => {
+                    if (!elements || elements.length === 0) {
+                        clearHoverMarker();
+                        clearPointDetails();
+                        return;
+                    }
+                    const ds = chartRef.data.datasets[0].data;
+                    const datum = ds[elements[0].index];
+                    if (datum) {
+                        setHoverMarker(datum.lat, datum.lon);
+                        if (datum.point) renderPointDetails(datum.point);
+                    }
+                }
+            }
+        });
+        el.addEventListener('mouseleave', () => {
+            clearHoverMarker();
+            clearPointDetails();
+        });
+        charts[canvasId] = chart;
+        return chart;
+    }
+
+    document.getElementById('resetZoomBtn').addEventListener('click', () => {
+        Object.values(charts).forEach(c => { if (c && typeof c.resetZoom === 'function') c.resetZoom(); });
+    });
+
+    fetch('/api/session/' + encodeURIComponent(sessionId) + '/track')
+        .then(r => r.json())
+        .then(trackPoints => {
+            console.log('trackPoints:', trackPoints.length);
+
+            const latlngs = trackPoints
+                .map(p => [Number(p.lat), Number(p.lon)])
+                .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && !(a === 0 && b === 0));
+
+            if (latlngs.length === 0) {
+                showMapEmpty();
+            } else {
+                document.getElementById('mapLoading').style.display = 'none';
+                document.getElementById('map').style.display = 'block';
+                leafletMap = L.map('map', { preferCanvas: true });
+                const tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                    maxZoom: 19
+                });
+                tileLayer.on('tileerror', e => console.error('tile error:', e));
+                tileLayer.addTo(leafletMap);
+
+                const polyline = L.polyline(latlngs, { color: '#dc3545', weight: 4, opacity: 0.85 }).addTo(leafletMap);
+                if (latlngs.length > 1) {
+                    leafletMap.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+                } else {
+                    leafletMap.setView(latlngs[0], 15);
+                }
+                L.marker(latlngs[0], { title: 'Start' }).addTo(leafletMap).bindPopup('<b>Start</b>');
+                L.marker(latlngs[latlngs.length - 1], { title: 'End' }).addTo(leafletMap).bindPopup('<b>End</b>');
+                setTimeout(() => leafletMap.invalidateSize(), 100);
+            }
+
+            if (trackPoints.length > 0) {
+                if (hasHeartRate) {
+                    const anyHr = trackPoints.some(p => p.heartRate && p.heartRate > 0);
+                    if (anyHr) {
+                        buildLineChart('hrChart', trackPoints,
+                            p => (p.heartRate && p.heartRate > 0) ? p.heartRate : null,
+                            'HR', '#dc3545', 'bpm');
+                    }
+                }
+                const anyElev = trackPoints.some(p => p.altitude !== null && p.altitude !== undefined);
+                if (anyElev) {
+                    buildLineChart('elevChart', trackPoints,
+                        p => (p.altitude == null) ? null : p.altitude,
+                        'Elevation', '#198754', 'm');
+                }
+                buildLineChart('speedChart', trackPoints, p => p.speedKmh, 'Speed', '#0d6efd', 'km/h');
+            }
+        })
+        .catch(err => {
+            console.error('Failed to load track:', err);
+            showMapEmpty();
+        });
+</script>
+
+</body>
+</html>
