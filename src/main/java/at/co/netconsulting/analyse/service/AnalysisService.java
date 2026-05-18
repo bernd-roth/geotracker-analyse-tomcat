@@ -95,9 +95,17 @@ public class AnalysisService {
         return sessionRepository.countSessions(userId);
     }
 
-    public List<SessionSummary> getRecentSessions(Integer userId, int page) {
+    public long countSessions(Integer userId, String search) {
+        if (search == null || search.isBlank()) {
+            return sessionRepository.countSessions(userId);
+        }
+        return sessionRepository.countSessionsFiltered(userId, search);
+    }
+
+    public List<SessionSummary> getRecentSessions(Integer userId, int page, String search) {
         int offset = Math.max(0, page) * SESSIONS_PAGE_SIZE;
-        return sessionRepository.findRecentSessionsWithStats(userId, SESSIONS_PAGE_SIZE, offset).stream()
+        String normalizedSearch = (search != null && !search.isBlank()) ? search : null;
+        return sessionRepository.findRecentSessionsWithStats(userId, normalizedSearch, SESSIONS_PAGE_SIZE, offset).stream()
                 .map(r -> {
                     double distKm = toDouble(r[8]);
                     double durationSec = toDouble(r[14]);

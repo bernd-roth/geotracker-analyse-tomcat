@@ -283,14 +283,27 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
                         <h5 class="section-title mb-0">Sessions Overview</h5>
-                        <span class="text-muted small">
+                        <span class="text-muted small" th:if="${sessionsTotalCount > 0}">
                             Showing <span th:text="${sessionsPage * sessionsPageSize + 1}">1</span>–<span
                                 th:text="${sessionsPage * sessionsPageSize + #lists.size(recentSessions)}">30</span>
                             of <span th:text="${sessionsTotalCount}">0</span>
                             (page <span th:text="${sessionsPage + 1}">1</span>
                             of <span th:text="${sessionsTotalPages}">1</span>)
                         </span>
+                        <span class="text-muted small" th:if="${sessionsTotalCount == 0}">No matching sessions</span>
                     </div>
+                    <form method="get" action="/" class="mb-3">
+                        <input type="hidden" th:if="${selectedUserId != null}" name="userId" th:value="${selectedUserId}"/>
+                        <div class="input-group input-group-sm">
+                            <input type="text" name="search" class="form-control"
+                                   th:value="${searchQuery}"
+                                   placeholder="Search by date, user, event, sport, location, distance, speed, elevation, HR, temp, duration, pace..."/>
+                            <button type="submit" class="btn btn-primary">Search</button>
+                            <a th:if="${searchQuery != null and !#strings.isEmpty(searchQuery)}"
+                               th:href="@{/(userId=${selectedUserId})}"
+                               class="btn btn-outline-secondary">Clear</a>
+                        </div>
+                    </form>
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead>
@@ -358,27 +371,27 @@
                         <ul class="pagination pagination-sm justify-content-center mb-0 flex-wrap">
                             <li class="page-item" th:classappend="${sessionsPage == 0} ? 'disabled'">
                                 <a class="page-link"
-                                   th:href="@{/(userId=${selectedUserId}, page=0)}">&laquo; First</a>
+                                   th:href="@{/(userId=${selectedUserId}, page=0, search=${searchQuery})}">&laquo; First</a>
                             </li>
                             <li class="page-item" th:classappend="${sessionsPage == 0} ? 'disabled'">
                                 <a class="page-link"
-                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsPage - 1})}">Previous</a>
+                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsPage - 1}, search=${searchQuery})}">Previous</a>
                             </li>
                             <li class="page-item"
                                 th:each="p : ${#numbers.sequence(0, sessionsTotalPages - 1)}"
                                 th:if="${p >= sessionsPage - 3 and p <= sessionsPage + 3}"
                                 th:classappend="${p == sessionsPage} ? 'active'">
                                 <a class="page-link"
-                                   th:href="@{/(userId=${selectedUserId}, page=${p})}"
+                                   th:href="@{/(userId=${selectedUserId}, page=${p}, search=${searchQuery})}"
                                    th:text="${p + 1}">1</a>
                             </li>
                             <li class="page-item" th:classappend="${sessionsPage + 1 >= sessionsTotalPages} ? 'disabled'">
                                 <a class="page-link"
-                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsPage + 1})}">Next</a>
+                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsPage + 1}, search=${searchQuery})}">Next</a>
                             </li>
                             <li class="page-item" th:classappend="${sessionsPage + 1 >= sessionsTotalPages} ? 'disabled'">
                                 <a class="page-link"
-                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsTotalPages - 1})}">Last &raquo;</a>
+                                   th:href="@{/(userId=${selectedUserId}, page=${sessionsTotalPages - 1}, search=${searchQuery})}">Last &raquo;</a>
                             </li>
                         </ul>
                     </nav>

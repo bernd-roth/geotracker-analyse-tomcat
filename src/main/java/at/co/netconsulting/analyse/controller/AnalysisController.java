@@ -23,11 +23,14 @@ public class AnalysisController {
     @GetMapping("/")
     public String dashboard(@RequestParam(value = "userId", required = false) Integer userId,
                             @RequestParam(value = "page", defaultValue = "0") int page,
+                            @RequestParam(value = "search", required = false) String search,
                             Model model) {
+        String trimmedSearch = (search != null && !search.isBlank()) ? search.trim() : null;
         model.addAttribute("allUsers", analysisService.getAllUsers());
         model.addAttribute("selectedUserId", userId);
+        model.addAttribute("searchQuery", trimmedSearch != null ? trimmedSearch : "");
 
-        long totalSessionCount = analysisService.countSessions(userId);
+        long totalSessionCount = analysisService.countSessions(userId, trimmedSearch);
         int pageSize = AnalysisService.SESSIONS_PAGE_SIZE;
         int totalPages = (int) Math.max(1, (totalSessionCount + pageSize - 1) / pageSize);
         if (page < 0) page = 0;
@@ -62,7 +65,7 @@ public class AnalysisController {
         model.addAttribute("monthSessions", monthlyReversed.stream().map(MonthlyStats::sessionCount).toList());
         model.addAttribute("monthDistances", monthlyReversed.stream().map(MonthlyStats::totalDistanceKm).toList());
 
-        model.addAttribute("recentSessions", analysisService.getRecentSessions(userId, page));
+        model.addAttribute("recentSessions", analysisService.getRecentSessions(userId, page, trimmedSearch));
         model.addAttribute("upcomingEvents", analysisService.getUpcomingEvents());
         model.addAttribute("allPlannedEvents", analysisService.getAllPlannedEvents());
         model.addAttribute("records", analysisService.getRecords(userId));
