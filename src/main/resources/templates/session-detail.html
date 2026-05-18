@@ -192,17 +192,17 @@
     <!-- Charts Row -->
     <div class="d-flex justify-content-between align-items-center mb-2">
         <small class="text-muted">
-            Hover a chart to locate the point on the map. Scroll to zoom, drag to pan, shift-drag to box-zoom (charts stay in sync).
+            Hover a chart to locate &amp; zoom the map at that point. Scroll to zoom, drag to pan, shift-drag to box-zoom (charts stay in sync).
         </small>
         <button id="resetZoomBtn" type="button" class="btn btn-sm btn-outline-secondary">Reset zoom</button>
     </div>
     <div class="row g-3 mb-4">
-        <div class="col-lg-6" th:if="${sessionDetail.hasHeartRate()}">
+        <div class="col-lg-6">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <h5 class="section-title">Heart Rate</h5>
+                    <h5 class="section-title">Speed</h5>
                     <div class="chart-container">
-                        <canvas id="hrChart"></canvas>
+                        <canvas id="speedChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -217,12 +217,22 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-6">
+        <div class="col-lg-6" th:if="${sessionDetail.hasHeartRate()}">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <h5 class="section-title">Speed</h5>
+                    <h5 class="section-title">Heart Rate</h5>
                     <div class="chart-container">
-                        <canvas id="speedChart"></canvas>
+                        <canvas id="hrChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6" th:if="${sessionDetail.hasHeartRate()}">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="section-title">Heart Rate vs Altitude</h5>
+                    <div class="chart-container">
+                        <canvas id="hrAltitudeChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -291,6 +301,28 @@
     const charts = {};
     let syncingZoom = false;
 
+    const HOVER_ZOOM = 17;
+    let savedMapView = null;
+    let isHoveringChart = false;
+
+    function enterChartHover() {
+        if (!leafletMap || isHoveringChart) return;
+        isHoveringChart = true;
+        savedMapView = {
+            center: leafletMap.getCenter(),
+            zoom: leafletMap.getZoom()
+        };
+    }
+
+    function exitChartHover() {
+        if (!leafletMap || !isHoveringChart) return;
+        isHoveringChart = false;
+        if (savedMapView) {
+            leafletMap.setView(savedMapView.center, savedMapView.zoom, { animate: true });
+            savedMapView = null;
+        }
+    }
+
     function setHoverMarker(lat, lon) {
         if (!leafletMap || !Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return;
         if (!hoverMarker) {
@@ -303,6 +335,13 @@
             }).addTo(leafletMap);
         } else {
             hoverMarker.setLatLng([lat, lon]);
+        }
+        if (isHoveringChart) {
+            if (leafletMap.getZoom() < HOVER_ZOOM) {
+                leafletMap.setView([lat, lon], HOVER_ZOOM, { animate: false });
+            } else {
+                leafletMap.panTo([lat, lon], { animate: false });
+            }
         }
     }
 
@@ -413,6 +452,7 @@
         if (syncingZoom) return;
         const source = charts[sourceId];
         if (!source) return;
+        const sourceGroup = source._syncGroup;
         const xMin = source.scales.x.min;
         const xMax = source.scales.x.max;
         syncingZoom = true;
@@ -420,7 +460,8 @@
             Object.keys(charts).forEach(id => {
                 if (id === sourceId) return;
                 const c = charts[id];
-                if (c && typeof c.zoomScale === 'function') {
+                if (!c || c._syncGroup !== sourceGroup) return;
+                if (typeof c.zoomScale === 'function') {
                     c.zoomScale('x', { min: xMin, max: xMax }, 'none');
                 }
             });
@@ -429,33 +470,47 @@
         }
     }
 
-    function buildLineChart(canvasId, points, valueFn, label, color, yUnit) {
+    function buildChart(canvasId, points, valueFn, label, color, yUnit, opts) {
+        const o = opts || {};
+        const xFn = o.xFn || (p => p.distanceM / 1000);
+        const xUnit = o.xUnit || 'km';
+        const xLabel = o.xLabel || 'Distance (km)';
+        const chartType = o.chartType || 'line';
+        const syncGroup = o.syncGroup || 'distance';
+        const sortByX = o.sortByX === true;
+
         const el = document.getElementById(canvasId);
         if (!el) return null;
         const sample = downsample(points, 400);
-        const data = sample.map(p => ({
-            x: p.distanceM / 1000,
+        let data = sample.map(p => ({
+            x: xFn(p),
             y: valueFn(p),
             lat: p.lat,
             lon: p.lon,
             point: p
         }));
+        if (chartType === 'scatter') {
+            data = data.filter(d => d.x != null && Number.isFinite(d.x) && d.y != null && Number.isFinite(d.y));
+        }
+        if (sortByX) {
+            data.sort((a, b) => a.x - b.x);
+        }
+
+        const datasetBase = {
+            label: label,
+            data: data,
+            parsing: false,
+            borderColor: color,
+            backgroundColor: chartType === 'scatter' ? color + '99' : color + '33'
+        };
+        const datasetStyle = chartType === 'scatter'
+            ? { pointRadius: 3, pointHoverRadius: 6, showLine: false }
+            : { spanGaps: true, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.2, fill: true };
+
         const chart = new Chart(el, {
-            type: 'line',
+            type: chartType === 'scatter' ? 'scatter' : 'line',
             data: {
-                datasets: [{
-                    label: label,
-                    data: data,
-                    parsing: false,
-                    spanGaps: true,
-                    borderColor: color,
-                    backgroundColor: color + '33',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 5,
-                    tension: 0.2,
-                    fill: true
-                }]
+                datasets: [Object.assign({}, datasetBase, datasetStyle)]
             },
             options: {
                 responsive: true,
@@ -466,7 +521,12 @@
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            title: items => items.length ? items[0].parsed.x.toFixed(2) + ' km' : '',
+                            title: items => {
+                                if (!items.length) return '';
+                                const x = items[0].parsed.x;
+                                const digits = xUnit === 'km' ? 2 : 0;
+                                return `${x.toFixed(digits)} ${xUnit}`;
+                            },
                             label: ctx => `${label}: ${ctx.parsed.y == null ? '-' : ctx.parsed.y.toFixed(1)} ${yUnit}`
                         }
                     },
@@ -491,7 +551,7 @@
                 scales: {
                     x: {
                         type: 'linear',
-                        title: { display: true, text: 'Distance (km)' }
+                        title: { display: true, text: xLabel }
                     },
                     y: { title: { display: true, text: yUnit } }
                 },
@@ -510,12 +570,21 @@
                 }
             }
         });
+        chart._syncGroup = syncGroup;
+        el.addEventListener('mouseenter', () => {
+            enterChartHover();
+        });
         el.addEventListener('mouseleave', () => {
             clearHoverMarker();
             clearPointDetails();
+            exitChartHover();
         });
         charts[canvasId] = chart;
         return chart;
+    }
+
+    function buildLineChart(canvasId, points, valueFn, label, color, yUnit) {
+        return buildChart(canvasId, points, valueFn, label, color, yUnit);
     }
 
     document.getElementById('resetZoomBtn').addEventListener('click', () => {
@@ -556,13 +625,11 @@
             }
 
             if (trackPoints.length > 0) {
-                if (hasHeartRate) {
-                    const anyHr = trackPoints.some(p => p.heartRate && p.heartRate > 0);
-                    if (anyHr) {
-                        buildLineChart('hrChart', trackPoints,
-                            p => (p.heartRate && p.heartRate > 0) ? p.heartRate : null,
-                            'HR', '#dc3545', 'bpm');
-                    }
+                const anyHr = hasHeartRate && trackPoints.some(p => p.heartRate && p.heartRate > 0);
+                if (anyHr) {
+                    buildLineChart('hrChart', trackPoints,
+                        p => (p.heartRate && p.heartRate > 0) ? p.heartRate : null,
+                        'HR', '#dc3545', 'bpm');
                 }
                 const anyElev = trackPoints.some(p => p.altitude !== null && p.altitude !== undefined);
                 if (anyElev) {
@@ -571,6 +638,19 @@
                         'Elevation', '#198754', 'm');
                 }
                 buildLineChart('speedChart', trackPoints, p => p.speedKmh, 'Speed', '#0d6efd', 'km/h');
+                if (anyHr && anyElev) {
+                    buildChart('hrAltitudeChart', trackPoints,
+                        p => (p.heartRate && p.heartRate > 0) ? p.heartRate : null,
+                        'HR', '#dc3545', 'bpm',
+                        {
+                            xFn: p => (p.altitude == null) ? null : p.altitude,
+                            xUnit: 'm',
+                            xLabel: 'Altitude (m)',
+                            chartType: 'scatter',
+                            syncGroup: 'altitude',
+                            sortByX: true
+                        });
+                }
             }
         })
         .catch(err => {
