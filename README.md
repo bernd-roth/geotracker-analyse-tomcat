@@ -4,21 +4,79 @@ Analysis dashboard for GPS tracking data collected by the GeoTracker app.
 Renders aggregate stats, per-session detail with map and synced charts, and
 deploys as a WAR to an external Tomcat.
 
-## Features
+## What you can analyse
 
-- **Dashboard** — overall stats, sport-type breakdown, per-user stats,
-  monthly trend, records, recent sessions, planned events.
-- **Session detail** — Leaflet map of the GPS track + Chart.js charts for
-  heart rate, elevation, and speed sharing a numeric distance axis.
-- **Synced zoom & pan** — wheel/pinch zoom, drag pan, shift-drag box-zoom;
-  all charts stay aligned. "Reset zoom" restores the full range.
-- **Hover-to-locate** — hovering any chart drops a marker on the map at the
-  matching GPS point.
-- **Point details panel** — live side panel beside the map showing every
-  available field for the hovered point: time, speed, elevation, HR, slope,
-  temperature, humidity, wind (km/h + cardinal), weather (text + WMO code),
-  pressure, sea-level pressure, barometric altitude, GPS accuracy,
-  satellite count.
+### Across all sessions (Dashboard)
+
+- **Summary KPIs** — total sessions, total distance (km), total GPS data
+  points, active users.
+- **Sport-type breakdown** — doughnut chart and table: sessions, total
+  distance, average distance per sport (Running, Walking, Cycling,
+  Marathon, Ultramarathon, …).
+- **Monthly activity trend** — combined bar/line chart of sessions per
+  month vs. distance per month, plus a sortable Monthly Breakdown table.
+- **Per-user stats** — sessions, total distance, average speed, total
+  elevation gain, average heart rate per user (with an "All users / single
+  user" filter in the navbar that scopes the whole dashboard).
+- **Personal records** — fastest pace, longest distance, highest elevation
+  gain, etc., as highlighted cards.
+- **Fastest paces (Running)** — leaderboard of the quickest paces with
+  user, event, date, distance and duration.
+- **Sessions Overview** — paginated, sortable table of every session with
+  date, user, event, sport, location, distance, avg/max speed, elevation,
+  avg HR, temperature, duration and pace. Includes a free-text search box
+  that matches across all of those fields at once.
+- **Upcoming / planned events** — events scheduled for the future, with
+  completion status and optional website link.
+
+### Per session (Session detail)
+
+- **Summary cards** — distance, duration, pace, avg speed, max speed,
+  elevation gain, plus heart-rate (avg/min/max) and average temperature
+  when available.
+- **GPS track on a Leaflet map** — the full route rendered from
+  `gps_tracking_points`. Hovering any chart drops a marker on the matching
+  GPS point and re-centres the map.
+- **Point Details side panel** — for the hovered point: time, speed,
+  elevation, HR, slope, temperature, humidity, wind (km/h + cardinal),
+  weather (text + WMO code), pressure, sea-level pressure, barometric
+  altitude, GPS accuracy, satellite count.
+- **Synced charts** — Speed, Elevation, Heart Rate, and Heart Rate vs
+  Altitude (scatter). All share a numeric distance axis; wheel/pinch zoom,
+  drag-to-pan and shift-drag box-zoom stay in sync across charts. A "Reset
+  zoom" button restores the full range.
+- **Lap times** — distance and pace per lap when `lap_times` data is
+  present.
+
+## Screenshots
+
+### Dashboard
+
+KPI summary, sport-type doughnut, monthly activity trend and personal-records cards:
+
+![Dashboard — KPIs, sport-type doughnut, monthly trend, personal records](docs/screenshots/dashboard_1.jpg)
+
+Per-user statistics and sport-type breakdown:
+
+![Dashboard — User Statistics and Sport Type Breakdown tables](docs/screenshots/dashboard_2.jpg)
+
+Sessions Overview with free-text search across every column:
+
+![Dashboard — Sessions Overview, paginated and searchable](docs/screenshots/dashboard_3.jpg)
+
+Fastest paces leaderboard and upcoming planned events, side by side:
+
+![Dashboard — Fastest Paces and Upcoming Events](docs/screenshots/dashboard_4.jpg)
+
+Monthly breakdown — sessions, total distance, average distance per session:
+
+![Dashboard — Monthly Breakdown table](docs/screenshots/dashboard_5.jpg)
+
+### Session detail
+
+GPS track on a Leaflet map, summary cards, synced Speed/Elevation charts and per-lap times:
+
+![Session detail — map, summary cards, synced charts, lap times](docs/screenshots/session_detail_analysis.jpg)
 
 ## Stack
 
@@ -86,6 +144,7 @@ src/main/java/at/co/netconsulting/analyse/
 src/main/resources/
   templates/                   # Thymeleaf views (dashboard, session-detail)
   application.properties       # env-var-driven datasource config
+docs/screenshots/              # README images
 ```
 
 ## API
