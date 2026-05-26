@@ -304,7 +304,7 @@ public class AnalysisService {
     }
 
     private String formatPaceFromSeconds(double durationSeconds, double distanceKm) {
-        if (durationSeconds <= 0 || distanceKm <= 0) return "-";
+        if (durationSeconds < 1 || distanceKm <= 0) return "-";
         double paceMinPerKm = (durationSeconds / 60.0) / distanceKm;
         int paceMin = (int) paceMinPerKm;
         int paceSec = (int) ((paceMinPerKm - paceMin) * 60);

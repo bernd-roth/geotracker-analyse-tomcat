@@ -78,6 +78,32 @@ GPS track on a Leaflet map, summary cards, synced Speed/Elevation charts and per
 
 ![Session detail — map, summary cards, synced charts, lap times](docs/screenshots/session_detail_analysis.jpg)
 
+## How metrics are computed
+
+All speed, pace and duration figures are derived from the GPS points
+themselves, **not** from the `average_speed` / `max_speed` columns the
+tracker writes per point. Those columns are running values from the
+device and can spike during a session, so trusting them produces things
+like a 20 km/h "average" on an 8 km/h run.
+
+The conventions across every query are:
+
+| Metric                     | Computed as                                                          |
+| -------------------------- | -------------------------------------------------------------------- |
+| **Duration**               | `MAX(created_at) − MIN(created_at)` per session                       |
+| **Distance**               | `MAX(distance)` per session (cumulative column)                       |
+| **Average speed (session)**| `distance / duration × 3.6` (km/h); reported as 0 when duration < 1s |
+| **Max speed**              | `MAX(max_speed)` from the GPS points                                  |
+| **Pace**                   | `(duration ÷ 60) ÷ distance_km`, formatted as `m:ss min/km`           |
+| **Average speed (user)**   | `SUM(distance) / SUM(duration) × 3.6`, restricted to sessions with duration ≥ 60s |
+| **Fastest avg-speed record** | Same as session avg speed, restricted to distance > 1 km and duration ≥ 60s |
+
+The 60-second floor on aggregated and record queries filters out
+sessions where every GPS point shares essentially the same timestamp
+(e.g. bulk-imported historical data) — those would otherwise divide a
+real distance by a near-zero duration and contaminate the result with
+absurd speeds.
+
 ## Stack
 
 - Java 26, Spring Boot 4.0.5 (WebMVC, Data JPA, Thymeleaf)
