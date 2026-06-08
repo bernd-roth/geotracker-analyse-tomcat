@@ -109,7 +109,7 @@ absurd speeds.
 - Java 26, Spring Boot 4.0.5 (WebMVC, Data JPA, Thymeleaf)
 - PostgreSQL (native queries against `gps_tracking_points`,
   `tracking_sessions`, `users`, `lap_times`)
-- Bootstrap 5, Leaflet 1.9, Chart.js 4, chartjs-plugin-zoom 2
+- Bootstrap 5, Leaflet 1.9, Chart.js 4, Hammer.js 2, chartjs-plugin-zoom 2
 - Gradle, packaged as `analyse.war` for external Tomcat
   (`bootWar` is disabled)
 
