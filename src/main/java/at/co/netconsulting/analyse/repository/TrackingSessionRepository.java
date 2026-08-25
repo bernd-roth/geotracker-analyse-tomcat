@@ -45,7 +45,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
             LEFT JOIN (
                 SELECT session_id,
                        MAX(distance) AS max_dist,
-                       EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) AS duration_seconds,
+                       EXTRACT(EPOCH FROM
+                           MAX(COALESCE(received_at, created_at))
+                           - MIN(COALESCE(received_at, created_at))
+                       ) AS duration_seconds,
                        MAX(cumulative_elevation_gain) AS max_elev,
                        AVG(heart_rate) FILTER (WHERE heart_rate > 0) AS avg_hr
                 FROM gps_tracking_points
@@ -99,9 +102,15 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                        MAX(distance) AS max_dist,
                        CASE
                            WHEN MAX(distance) > 0
-                            AND EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) >= 1
+                            AND EXTRACT(EPOCH FROM
+                                MAX(COALESCE(received_at, created_at))
+                                - MIN(COALESCE(received_at, created_at))
+                            ) >= 1
                            THEN MAX(distance)
-                                / EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at))
+                                / EXTRACT(EPOCH FROM
+                                    MAX(COALESCE(received_at, created_at))
+                                    - MIN(COALESCE(received_at, created_at))
+                                )
                                 * 3.6
                            ELSE 0
                        END AS avg_speed,
@@ -109,7 +118,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                        MAX(cumulative_elevation_gain) AS elev_gain,
                        AVG(heart_rate) FILTER (WHERE heart_rate > 0) AS avg_hr,
                        AVG(temperature) FILTER (WHERE temperature IS NOT NULL) AS avg_temp,
-                       EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) AS duration_seconds
+                       EXTRACT(EPOCH FROM
+                           MAX(COALESCE(received_at, created_at))
+                           - MIN(COALESCE(received_at, created_at))
+                       ) AS duration_seconds
                 FROM gps_tracking_points
                 GROUP BY session_id
             ) g ON ts.session_id = g.session_id
@@ -180,9 +192,15 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                        MAX(distance) AS max_dist,
                        CASE
                            WHEN MAX(distance) > 0
-                            AND EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) >= 1
+                            AND EXTRACT(EPOCH FROM
+                                MAX(COALESCE(received_at, created_at))
+                                - MIN(COALESCE(received_at, created_at))
+                            ) >= 1
                            THEN MAX(distance)
-                                / EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at))
+                                / EXTRACT(EPOCH FROM
+                                    MAX(COALESCE(received_at, created_at))
+                                    - MIN(COALESCE(received_at, created_at))
+                                )
                                 * 3.6
                            ELSE 0
                        END AS avg_speed,
@@ -190,7 +208,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                        MAX(cumulative_elevation_gain) AS elev_gain,
                        AVG(heart_rate) FILTER (WHERE heart_rate > 0) AS avg_hr,
                        AVG(temperature) FILTER (WHERE temperature IS NOT NULL) AS avg_temp,
-                       EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) AS duration_seconds
+                       EXTRACT(EPOCH FROM
+                           MAX(COALESCE(received_at, created_at))
+                           - MIN(COALESCE(received_at, created_at))
+                       ) AS duration_seconds
                 FROM gps_tracking_points
                 GROUP BY session_id
             ) g ON ts.session_id = g.session_id
@@ -266,9 +287,15 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                        MAX(distance) AS max_dist,
                        CASE
                            WHEN MAX(distance) > 0
-                            AND EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) >= 1
+                            AND EXTRACT(EPOCH FROM
+                                MAX(COALESCE(received_at, created_at))
+                                - MIN(COALESCE(received_at, created_at))
+                            ) >= 1
                            THEN MAX(distance)
-                                / EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at))
+                                / EXTRACT(EPOCH FROM
+                                    MAX(COALESCE(received_at, created_at))
+                                    - MIN(COALESCE(received_at, created_at))
+                                )
                                 * 3.6
                            ELSE 0
                        END AS avg_speed,
@@ -278,7 +305,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                        MIN(heart_rate) FILTER (WHERE heart_rate > 0) AS min_hr,
                        MAX(heart_rate) FILTER (WHERE heart_rate > 0) AS max_hr,
                        AVG(temperature) FILTER (WHERE temperature IS NOT NULL) AS avg_temp,
-                       EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) AS duration_seconds
+                       EXTRACT(EPOCH FROM
+                           MAX(COALESCE(received_at, created_at))
+                           - MIN(COALESCE(received_at, created_at))
+                       ) AS duration_seconds
                 FROM gps_tracking_points
                 WHERE session_id = :sessionId
                 GROUP BY session_id
@@ -294,7 +324,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
                    heart_rate,
                    distance,
                    current_speed,
-                   EXTRACT(EPOCH FROM created_at - MIN(created_at) OVER ()) AS seconds_from_start,
+                   EXTRACT(EPOCH FROM
+                       COALESCE(received_at, created_at)
+                       - MIN(COALESCE(received_at, created_at)) OVER ()
+                   ) AS seconds_from_start,
                    temperature,
                    wind_speed,
                    wind_direction,
@@ -310,7 +343,7 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
             WHERE session_id = :sessionId
               AND latitude IS NOT NULL
               AND longitude IS NOT NULL
-            ORDER BY created_at ASC
+            ORDER BY COALESCE(received_at, created_at) ASC
             """, nativeQuery = true)
     List<Object[]> findSessionTrackPoints(@Param("sessionId") String sessionId);
 
@@ -370,7 +403,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
             SELECT 'Fastest Average Speed' AS record_type,
                    ts.event_name, u.firstname, ts.sport_type,
                    MAX(g.distance)
-                       / NULLIF(EXTRACT(EPOCH FROM MAX(g.created_at) - MIN(g.created_at)), 0)
+                       / NULLIF(EXTRACT(EPOCH FROM
+                           MAX(COALESCE(g.received_at, g.created_at))
+                           - MIN(COALESCE(g.received_at, g.created_at))
+                       ), 0)
                        * 3.6 AS value,
                    'km/h' AS unit,
                    ts.start_date_time
@@ -382,9 +418,15 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
               AND (:userId IS NULL OR ts.user_id = :userId)
             GROUP BY ts.session_id, ts.event_name, u.firstname, ts.sport_type, ts.start_date_time
             HAVING MAX(g.distance) > 1000
-               AND EXTRACT(EPOCH FROM MAX(g.created_at) - MIN(g.created_at)) >= 60
+               AND EXTRACT(EPOCH FROM
+                   MAX(COALESCE(g.received_at, g.created_at))
+                   - MIN(COALESCE(g.received_at, g.created_at))
+               ) >= 60
             ORDER BY MAX(g.distance)
-                     / EXTRACT(EPOCH FROM MAX(g.created_at) - MIN(g.created_at)) DESC
+                     / EXTRACT(EPOCH FROM
+                         MAX(COALESCE(g.received_at, g.created_at))
+                         - MIN(COALESCE(g.received_at, g.created_at))
+                     ) DESC
             LIMIT 1
             """, nativeQuery = true)
     List<Object[]> findFastestRunRecord(@Param("userId") Integer userId);
@@ -405,7 +447,10 @@ public interface TrackingSessionRepository extends JpaRepository<TrackingSession
             JOIN (
                 SELECT session_id,
                        MAX(distance) AS max_dist,
-                       EXTRACT(EPOCH FROM MAX(created_at) - MIN(created_at)) AS duration_seconds
+                       EXTRACT(EPOCH FROM
+                           MAX(COALESCE(received_at, created_at))
+                           - MIN(COALESCE(received_at, created_at))
+                       ) AS duration_seconds
                 FROM gps_tracking_points
                 GROUP BY session_id
             ) g ON ts.session_id = g.session_id

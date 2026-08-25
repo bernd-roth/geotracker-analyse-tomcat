@@ -90,7 +90,7 @@ The conventions across every query are:
 
 | Metric                     | Computed as                                                          |
 | -------------------------- | -------------------------------------------------------------------- |
-| **Duration**               | `MAX(created_at) − MIN(created_at)` per session                       |
+| **Duration**               | `MAX(event timestamp) - MIN(event timestamp)` per session             |
 | **Distance**               | `MAX(distance)` per session (cumulative column)                       |
 | **Average speed (session)**| `distance / duration × 3.6` (km/h); reported as 0 when duration < 1s |
 | **Max speed**              | `MAX(max_speed)` from the GPS points                                  |
@@ -103,6 +103,10 @@ sessions where every GPS point shares essentially the same timestamp
 (e.g. bulk-imported historical data) — those would otherwise divide a
 real distance by a near-zero duration and contaminate the result with
 absurd speeds.
+
+The event timestamp is `received_at`, which preserves the original time
+when historical sessions are uploaded. `created_at` is used only as a
+fallback for older rows that do not have a received timestamp.
 
 ## Stack
 
