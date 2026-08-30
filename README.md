@@ -90,7 +90,7 @@ The conventions across every query are:
 
 | Metric                     | Computed as                                                          |
 | -------------------------- | -------------------------------------------------------------------- |
-| **Duration**               | `MAX(event timestamp) - MIN(event timestamp)` per session             |
+| **Duration**               | Per-session timestamp span; see the selection rule below              |
 | **Distance**               | `MAX(distance)` per session (cumulative column)                       |
 | **Average speed (session)**| `distance / duration × 3.6` (km/h); reported as 0 when duration < 1s |
 | **Max speed**              | `MAX(max_speed)` from the GPS points                                  |
@@ -104,9 +104,23 @@ sessions where every GPS point shares essentially the same timestamp
 real distance by a near-zero duration and contaminate the result with
 absurd speeds.
 
-The event timestamp is `received_at`, which preserves the original time
-when historical sessions are uploaded. `created_at` is used only as a
-fallback for older rows that do not have a received timestamp.
+For each session, `received_at` is preferred when its point-to-point span
+is at least 60 seconds, because it preserves the original timeline for
+historical uploads. If that timeline is missing or compressed below 60
+seconds, the calculation falls back to the `created_at` span. This avoids
+discarding older sessions whose non-null `received_at` values all contain
+the same upload time.
+
+For the per-user average only, if both timestamp spans are unusable, the
+duration is inferred from distance and the positive
+`average_speed` stored at the session's furthest GPS point. This final
+running-average value is used only as a last resort; taking
+`MAX(average_speed)` would incorrectly select an earlier peak.
+
+Timestamp spans and stored fallback values contribute to the per-user
+average only when they imply a speed between 0.5 and 200 km/h. Sessions
+outside that broad validity range are ignored so a corrupt multi-month
+duration cannot dilute an otherwise normal aggregate to nearly zero.
 
 ## Stack
 
